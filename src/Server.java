@@ -14,14 +14,13 @@ public class Server {
 	static DataOutputStream output;
 	static BufferedReader reader;
 	static String logFile = "log.txt";
-	static PrintWriter writer;
 
 	public static InetAddress getAddress() throws UnknownHostException {
 		return InetAddress.getByName(ADDRESS);
 	}
 
 	public Server() throws IOException {
-		writer = new PrintWriter(new BufferedWriter(new FileWriter(logFile)));
+
 		serverSocket = new ServerSocket(PORT);
 		Socket socket = serverSocket.accept();
 		input = new DataInputStream(socket.getInputStream());
@@ -35,7 +34,6 @@ public class Server {
 			boolean loginSuccess = getAuthData();
 			while (true) {
 				if (loginSuccess) {
-					writer.close();
 					String msg = input.readUTF();
 					output.writeUTF(msg);
 					output.flush();
@@ -54,9 +52,8 @@ public class Server {
 
 	static boolean getAuthData() throws IOException {
 		boolean loginSuccess = false;
-		String login = "";
 
-		login = input.readUTF();
+		String login = input.readUTF();
 		String pass = input.readUTF();
 
 		reader = new BufferedReader(new FileReader("users.txt"));
@@ -75,16 +72,21 @@ public class Server {
 			}
 		}
 
-		if (!loginSuccess) {
-			output.writeUTF("Login failed");
-			writer.append(login + " login failed\n");
-		} else {
-			output.writeUTF(login);
-			writer.append(login + " login success\n");
+		PrintWriter writer = new PrintWriter(
+				new FileOutputStream(logFile, true));
+		try {
+			if (!loginSuccess) {
+				output.writeUTF("Login failed");
+				writer.append(login + " login failed\n");
+			} else {
+				output.writeUTF(login);
+				writer.append(login + " login success\n");
+			}
+		} finally {
+			output.flush();
+			reader.close();
+			writer.close();
 		}
-		output.flush();
-		reader.close();
-
 		return loginSuccess;
 	}
 }
