@@ -13,60 +13,78 @@ public class Server {
 	static DataInputStream input;
 	static DataOutputStream output;
 	static BufferedReader reader;
+	static String logFile = "log.txt";
+	static PrintWriter writer;
 
 	public static InetAddress getAddress() throws UnknownHostException {
 		return InetAddress.getByName(ADDRESS);
 	}
 
-	public static void main(String[] args) throws IOException {
+	public Server() throws IOException {
+		writer = new PrintWriter(new BufferedWriter(new FileWriter(logFile)));
+		serverSocket = new ServerSocket(PORT);
+		Socket socket = serverSocket.accept();
+		input = new DataInputStream(socket.getInputStream());
+		output = new DataOutputStream(socket.getOutputStream());
+	}
+
+	public static void main(String[] args) {
 		try {
-			serverSocket = new ServerSocket(PORT);
-			Socket socket = serverSocket.accept();
-			System.out.println("Connected to client");
-			input = new DataInputStream(socket.getInputStream());
-			output = new DataOutputStream(socket.getOutputStream());
+			new Server();
 
-			reader = new BufferedReader(new FileReader("users.txt"));
-			getAuthData();
+			boolean loginSuccess = getAuthData();
 			while (true) {
-
-				String msg = input.readUTF();
-				output.writeUTF(msg);
-				output.flush();
+				if (loginSuccess) {
+					writer.close();
+					String msg = input.readUTF();
+					output.writeUTF(msg);
+					output.flush();
+				} else {
+					loginSuccess = getAuthData();
+				}
 			}
+
 		} catch (SocketException e) {
 			System.exit(0);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+
 	}
 
-	static void getAuthData() throws IOException {
-		int auth = input.readByte();
-		if (auth == 1) {
-			String login = input.readUTF();
-			String pass = input.readUTF();
+	static boolean getAuthData() throws IOException {
+		boolean loginSuccess = false;
+		String login = "";
 
-			boolean userExists = false;
-			String line;
-			while ((line = reader.readLine()) != null) {
-				String[] data = line.split(" ");
-				if (data[0].equals(login)) {
-					userExists = true;
-					String correctPass = data[1];
-					if (correctPass.equals(pass)) {
-						output.writeUTF(login);
-						break;
-					} else {
-						output.writeUTF("Login failed");
-						break;
-					}
+		login = input.readUTF();
+		String pass = input.readUTF();
+
+		reader = new BufferedReader(new FileReader("users.txt"));
+		String line;
+		while ((line = reader.readLine()) != null) {
+
+			String[] data = line.split(" ");
+
+			if (data[0].equals(login)) {
+				String correctPass = data[1];
+
+				if (correctPass.equals(pass)) {
+					loginSuccess = true;
 				}
-			}
-			reader.close();
-			if (!userExists) {
-				output.writeUTF("Login failed");
+				break;
 			}
 		}
+
+		if (!loginSuccess) {
+			output.writeUTF("Login failed");
+			writer.append(login + " login failed\n");
+		} else {
+			output.writeUTF(login);
+			writer.append(login + " login success\n");
+		}
+		output.flush();
+		reader.close();
+
+		return loginSuccess;
 	}
 }
