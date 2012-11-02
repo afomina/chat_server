@@ -40,7 +40,7 @@ public class Server {
 
 	}
 
-	public boolean getAuthData() throws IOException {
+	boolean getAuthData() throws IOException {
 		boolean loginSuccess = false;
 
 		String login = input.readUTF();
