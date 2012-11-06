@@ -10,13 +10,14 @@ public class Server {
 	public static final String ADDRESS = "127.0.0.1";
 	public static final int AUTH = 1;
 	static ServerSocket serverSocket;
-	static DataInputStream input;
-	static DataOutputStream output;
+	Socket socket;
+	DataInputStream input;
+	DataOutputStream output;
 	static String logFile = "log.txt";
 
 	public Server() throws IOException {
 		serverSocket = new ServerSocket(PORT);
-		Socket socket = serverSocket.accept();
+		socket = serverSocket.accept();
 		input = new DataInputStream(socket.getInputStream());
 		output = new DataOutputStream(socket.getOutputStream());
 	}
@@ -36,8 +37,12 @@ public class Server {
 			}
 		} catch (SocketException e) {
 			System.out.println("user log out");
+			
+			socket = serverSocket.accept();
+			input = new DataInputStream(socket.getInputStream());
+			output = new DataOutputStream(socket.getOutputStream());
+			listen();
 		}
-
 	}
 
 	boolean getAuthData() throws IOException {
