@@ -92,6 +92,7 @@ public class Server {
 			reader = new BufferedReader(new FileReader(usersFile));
 		} catch (FileNotFoundException e) {
 			serverOut.println("File not found: " + usersFile);
+			return false;
 		}
 		String line;
 		try {
