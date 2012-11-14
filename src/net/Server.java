@@ -12,13 +12,15 @@ import java.io.StringWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.Date;
 
 public class Server {
-	public static final int PORT = 6680;
+	public static final int SERVER_PORT = 6680;
 	public static final String ADDRESS = "127.0.0.1";
 	public static final int AUTH = 1;
-	static ServerSocket serverSocket;
-	Socket socket;
+	ServerSocket serverSocket;
+	static final int CONNECT_PORT = 6681;
+	ServerSocket connectServerSocket;
 	DataInputStream input;
 	DataOutputStream output;
 	static String logFile = "log.txt";
@@ -30,49 +32,50 @@ public class Server {
 		serverOut.println("Waiting for connection...");
 
 		try {
-			serverSocket = new ServerSocket(PORT);
-			socket = serverSocket.accept();
-			input = new DataInputStream(socket.getInputStream());
-			output = new DataOutputStream(socket.getOutputStream());
+			serverSocket = new ServerSocket(SERVER_PORT);
 		} catch (IOException e) {
 			StringWriter trace = new StringWriter();
 			e.printStackTrace(new PrintWriter(trace));
-			serverOut.println("Cannot listen on port: " + PORT);
+			serverOut.println("Cannot listen on port: " + SERVER_PORT);
 			serverOut.println("Details: " + trace);
 		}
 	}
 
-	public void listen() {
-		try {
-			boolean loginSuccess = getAuthData();
-			while (true) {
-				if (loginSuccess) {
-					String msg = input.readUTF();
-					serverOut.println(msg);
-					output.writeUTF(msg);
-					output.flush();
-				} else {
-					loginSuccess = getAuthData();
-				}
-			}
-		} catch (SocketException e) {
-			serverOut.println(e.getMessage());
-			waitConnection();
-		} catch (IOException e) {
-			serverOut.println(e.getMessage());
+	public void listen() throws IOException {
+		while (true) {
+			Socket msgSocket;
+			msgSocket = serverSocket.accept();
+			input = new DataInputStream(msgSocket.getInputStream());
+			output = new DataOutputStream(msgSocket.getOutputStream());
+
+			new Thread(new ServerListener()).start();
 		}
 	}
 
-	void waitConnection() {
-		try {
-			serverOut.println("Waiting for connection...");
-			socket = serverSocket.accept();
-			input = new DataInputStream(socket.getInputStream());
-			output = new DataOutputStream(socket.getOutputStream());
-			listen();
-		} catch (IOException e) {
-			serverOut.println("Accept failed");
-		}
+	public void connect() {
+		Thread thread = new Thread(new Runnable() {
+
+			@Override
+			public void run() {
+				try {
+					connectServerSocket = new ServerSocket(CONNECT_PORT);
+					Socket connectionSocket = connectServerSocket.accept();
+					DataInputStream connectIn = new DataInputStream(
+							connectionSocket.getInputStream());
+					while (true) {
+						int data = connectIn.readInt();
+						if (data == AUTH) {
+							listen();
+						}
+					}
+				} catch (IOException e) {
+					serverOut.println(e.getMessage());
+				}
+			}
+		});
+
+		thread.setDaemon(true);
+		thread.start();
 	}
 
 	boolean getAuthData() throws IOException {
@@ -120,6 +123,7 @@ public class Server {
 			serverOut.println("File not found: " + logFile);
 		}
 		try {
+			logWriter.append(new Date().toString() + " ");
 			if (!loginSuccess) {
 				String msg = login + " login failed\n";
 				output.writeUTF(msg);
@@ -136,5 +140,29 @@ public class Server {
 			logWriter.close();
 		}
 		return loginSuccess;
+	}
+
+	class ServerListener implements Runnable {
+
+		@Override
+		public void run() {
+			try {
+				boolean loginSuccess = getAuthData();
+				while (true) {
+					if (loginSuccess) {
+						String msg = input.readUTF();
+						serverOut.println(msg);
+						output.writeUTF(msg);
+						output.flush();
+					} else {
+						loginSuccess = getAuthData();
+					}
+				}
+			} catch (SocketException e) {
+				serverOut.println(e.getMessage());
+			} catch (IOException e) {
+				serverOut.println(e.getMessage());
+			}
+		}
 	}
 }
