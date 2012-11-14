@@ -21,8 +21,8 @@ public class Server {
 	ServerSocket serverSocket;
 	static final int CONNECT_PORT = 6681;
 	ServerSocket connectServerSocket;
-	DataInputStream input;
-	DataOutputStream output;
+	DataInputStream connectIn;
+	DataOutputStream connectOut;
 	static String logFile = "log.txt";
 	static String usersFile = "users.txt";
 	ServerFrame serverOut;
@@ -45,10 +45,9 @@ public class Server {
 		while (true) {
 			Socket msgSocket;
 			msgSocket = serverSocket.accept();
-			input = new DataInputStream(msgSocket.getInputStream());
-			output = new DataOutputStream(msgSocket.getOutputStream());
 
-			new Thread(new ServerListener()).start();
+			Thread clientThread = new Thread(new ServerListener(msgSocket));
+			clientThread.start();
 		}
 	}
 
@@ -60,8 +59,10 @@ public class Server {
 				try {
 					connectServerSocket = new ServerSocket(CONNECT_PORT);
 					Socket connectionSocket = connectServerSocket.accept();
-					DataInputStream connectIn = new DataInputStream(
+					connectIn = new DataInputStream(
 							connectionSocket.getInputStream());
+					connectOut = new DataOutputStream(
+							connectionSocket.getOutputStream());
 					while (true) {
 						int data = connectIn.readInt();
 						if (data == AUTH) {
@@ -84,8 +85,8 @@ public class Server {
 		String login;
 		String pass;
 		try {
-			login = input.readUTF();
-			pass = input.readUTF();
+			login = connectIn.readUTF();
+			pass = connectIn.readUTF();
 		} catch (NullPointerException e) {
 			return false;
 		}
@@ -126,16 +127,16 @@ public class Server {
 			logWriter.append(new Date().toString() + " ");
 			if (!loginSuccess) {
 				String msg = login + " login failed\n";
-				output.writeUTF(msg);
+				connectOut.writeUTF(msg);
 				logWriter.append(msg);
 				serverOut.println(msg);
 			} else {
-				output.writeUTF(login);
+				connectOut.writeUTF(login);
 				logWriter.append(login + " login success\n");
 				serverOut.println(login + " log in");
 			}
 		} finally {
-			output.flush();
+			connectOut.flush();
 			reader.close();
 			logWriter.close();
 		}
@@ -143,10 +144,19 @@ public class Server {
 	}
 
 	class ServerListener implements Runnable {
+		Socket msgSocket;
+
+		public ServerListener(Socket msgSocket) {
+			this.msgSocket = msgSocket;
+		}
 
 		@Override
 		public void run() {
 			try {
+				DataInputStream input = new DataInputStream(
+						msgSocket.getInputStream());
+				DataOutputStream output = new DataOutputStream(
+						msgSocket.getOutputStream());
 				boolean loginSuccess = getAuthData();
 				while (true) {
 					if (loginSuccess) {
