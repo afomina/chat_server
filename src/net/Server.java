@@ -11,15 +11,14 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
 import java.util.Date;
 
 public class Server {
 	public static final int SERVER_PORT = 6680;
+	public static final int CONNECT_PORT = 6681;
 	public static final String ADDRESS = "127.0.0.1";
 	public static final int AUTH = 1;
 	ServerSocket serverSocket;
-	static final int CONNECT_PORT = 6681;
 	ServerSocket connectServerSocket;
 	DataInputStream connectIn;
 	DataOutputStream connectOut;
@@ -32,6 +31,7 @@ public class Server {
 		serverOut.println("Waiting for connection...");
 
 		try {
+			connectServerSocket = new ServerSocket(CONNECT_PORT);
 			serverSocket = new ServerSocket(SERVER_PORT);
 		} catch (IOException e) {
 			StringWriter trace = new StringWriter();
@@ -57,7 +57,6 @@ public class Server {
 			@Override
 			public void run() {
 				try {
-					connectServerSocket = new ServerSocket(CONNECT_PORT);
 					Socket connectionSocket = connectServerSocket.accept();
 					connectIn = new DataInputStream(
 							connectionSocket.getInputStream());
@@ -79,14 +78,15 @@ public class Server {
 		thread.start();
 	}
 
-	boolean getAuthData() throws IOException {
+	synchronized boolean getAuthData(DataInputStream in, DataOutputStream out)
+			throws IOException {
 		boolean loginSuccess = false;
 
 		String login;
 		String pass;
 		try {
-			login = connectIn.readUTF();
-			pass = connectIn.readUTF();
+			login = in.readUTF();
+			pass = in.readUTF();
 		} catch (NullPointerException e) {
 			return false;
 		}
@@ -127,16 +127,16 @@ public class Server {
 			logWriter.append(new Date().toString() + " ");
 			if (!loginSuccess) {
 				String msg = login + " login failed\n";
-				connectOut.writeUTF(msg);
+				out.writeUTF(msg);
 				logWriter.append(msg);
 				serverOut.println(msg);
 			} else {
-				connectOut.writeUTF(login);
+				out.writeUTF(login);
 				logWriter.append(login + " login success\n");
 				serverOut.println(login + " log in");
 			}
 		} finally {
-			connectOut.flush();
+			out.flush();
 			reader.close();
 			logWriter.close();
 		}
@@ -157,7 +157,7 @@ public class Server {
 						msgSocket.getInputStream());
 				DataOutputStream output = new DataOutputStream(
 						msgSocket.getOutputStream());
-				boolean loginSuccess = getAuthData();
+				boolean loginSuccess = getAuthData(input, output);
 				while (true) {
 					if (loginSuccess) {
 						String msg = input.readUTF();
@@ -165,11 +165,9 @@ public class Server {
 						output.writeUTF(msg);
 						output.flush();
 					} else {
-						loginSuccess = getAuthData();
+						loginSuccess = getAuthData(input, output);
 					}
 				}
-			} catch (SocketException e) {
-				serverOut.println(e.getMessage());
 			} catch (IOException e) {
 				serverOut.println(e.getMessage());
 			}
