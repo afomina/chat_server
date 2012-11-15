@@ -11,6 +11,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.Date;
 
 public class Server {
@@ -25,6 +26,7 @@ public class Server {
 	static String logFile = "log.txt";
 	static String usersFile = "users.txt";
 	ServerFrame serverOut;
+	ArrayList<Socket> clients = new ArrayList<Socket>();
 
 	public Server() {
 		serverOut = new ServerFrame();
@@ -45,6 +47,7 @@ public class Server {
 		while (true) {
 			Socket msgSocket;
 			msgSocket = serverSocket.accept();
+			clients.add(msgSocket);
 
 			Thread clientThread = new Thread(new ServerListener(msgSocket));
 			clientThread.start();
@@ -162,8 +165,14 @@ public class Server {
 					if (loginSuccess) {
 						String msg = input.readUTF();
 						serverOut.println(msg);
-						output.writeUTF(msg);
-						output.flush();
+
+						for (Socket client : clients) {
+							output = new DataOutputStream(
+									client.getOutputStream());
+							output.writeUTF(msg);
+							output.flush();
+						}
+
 					} else {
 						loginSuccess = getAuthData(input, output);
 					}
