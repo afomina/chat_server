@@ -131,7 +131,7 @@ public class Server {
 			} else {
 				out.writeUTF(login);
 				logWriter.append(login + " login success\n");
-				serverOut.println(login + " log in");
+				serverOut.println(login + " has logged in");
 			}
 		} finally {
 			out.flush();
