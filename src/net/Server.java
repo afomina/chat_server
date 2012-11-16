@@ -11,29 +11,25 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedList;
 
 public class Server {
 	public static final int SERVER_PORT = 6680;
 	public static final int CONNECT_PORT = 6681;
 	public static final String ADDRESS = "127.0.0.1";
 	public static final int AUTH = 1;
+	static final String logFile = "log.txt";
+	static final String usersFile = "users.txt";
 	ServerSocket serverSocket;
-	ServerSocket connectServerSocket;
-	DataInputStream connectIn;
-	DataOutputStream connectOut;
-	static String logFile = "log.txt";
-	static String usersFile = "users.txt";
 	ServerFrame serverOut;
-	ArrayList<Socket> clients = new ArrayList<Socket>();
+	LinkedList<Socket> clients = new LinkedList<Socket>();
 
 	public Server() {
 		serverOut = new ServerFrame();
 		serverOut.println("Waiting for connection...");
 
 		try {
-			connectServerSocket = new ServerSocket(CONNECT_PORT);
 			serverSocket = new ServerSocket(SERVER_PORT);
 		} catch (IOException e) {
 			StringWriter trace = new StringWriter();
@@ -43,42 +39,41 @@ public class Server {
 		}
 	}
 
-	public void listen() throws IOException {
-		while (true) {
-			Socket msgSocket;
-			msgSocket = serverSocket.accept();
-			clients.add(msgSocket);
-
-			Thread clientThread = new Thread(new ServerListener(msgSocket));
-			clientThread.start();
-		}
-	}
-
-	public void connect() {
+	public void listen() {
 		Thread thread = new Thread(new Runnable() {
 
 			@Override
 			public void run() {
 				try {
+					ServerSocket connectServerSocket = new ServerSocket(
+							CONNECT_PORT);
 					Socket connectionSocket = connectServerSocket.accept();
-					connectIn = new DataInputStream(
+					DataInputStream connectIn = new DataInputStream(
 							connectionSocket.getInputStream());
-					connectOut = new DataOutputStream(
-							connectionSocket.getOutputStream());
 					while (true) {
 						int data = connectIn.readInt();
 						if (data == AUTH) {
-							listen();
+							acceptClient();
 						}
 					}
 				} catch (IOException e) {
-					serverOut.println(e.getMessage());
+					serverOut.println("Cannot listen on port: " + CONNECT_PORT);
 				}
 			}
 		});
 
 		thread.setDaemon(true);
 		thread.start();
+	}
+
+	public void acceptClient() throws IOException {
+		while (true) {
+			Socket msgSocket = serverSocket.accept();
+			clients.add(msgSocket);
+
+			Thread clientThread = new Thread(new ServerListener(msgSocket));
+			clientThread.start();
+		}
 	}
 
 	synchronized boolean getAuthData(DataInputStream in, DataOutputStream out)
@@ -179,6 +174,7 @@ public class Server {
 				}
 			} catch (IOException e) {
 				serverOut.println(e.getMessage());
+				clients.remove(msgSocket);
 			}
 		}
 	}
